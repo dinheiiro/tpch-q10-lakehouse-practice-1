@@ -1,0 +1,4 @@
+> docker compose ... aws --endpoint-url http://s3:9000 s3 ls
+2026-10-17 11:54:08 bronze
+2026-10-17 11:54:09 gold
+2026-10-17 11:54:08 silver

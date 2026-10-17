@@ -1,0 +1,81 @@
+{
+  "http_status": 200,
+  "query_status": "success",
+  "query_id": 1,
+  "sql": "SELECT custkey, name, nationkey FROM bronze.lab.customer ORDER BY custkey LIMIT 10",
+  "columns": [
+    {
+      "column_name": "custkey",
+      "name": "custkey",
+      "type": "BIGINT",
+      "type_generic": 0,
+      "is_dttm": false
+    },
+    {
+      "column_name": "name",
+      "name": "name",
+      "type": "VARCHAR",
+      "type_generic": 1,
+      "is_dttm": false
+    },
+    {
+      "column_name": "nationkey",
+      "name": "nationkey",
+      "type": "BIGINT",
+      "type_generic": 0,
+      "is_dttm": false
+    }
+  ],
+  "data": [
+    {
+      "custkey": 1,
+      "name": "Customer#000000001",
+      "nationkey": 15
+    },
+    {
+      "custkey": 2,
+      "name": "Customer#000000002",
+      "nationkey": 13
+    },
+    {
+      "custkey": 3,
+      "name": "Customer#000000003",
+      "nationkey": 1
+    },
+    {
+      "custkey": 4,
+      "name": "Customer#000000004",
+      "nationkey": 4
+    },
+    {
+      "custkey": 5,
+      "name": "Customer#000000005",
+      "nationkey": 3
+    },
+    {
+      "custkey": 6,
+      "name": "Customer#000000006",
+      "nationkey": 20
+    },
+    {
+      "custkey": 7,
+      "name": "Customer#000000007",
+      "nationkey": 18
+    },
+    {
+      "custkey": 8,
+      "name": "Customer#000000008",
+      "nationkey": 17
+    },
+    {
+      "custkey": 9,
+      "name": "Customer#000000009",
+      "nationkey": 8
+    },
+    {
+      "custkey": 10,
+      "name": "Customer#000000010",
+      "nationkey": 5
+    }
+  ]
+}

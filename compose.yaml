@@ -1,0 +1,113 @@
+name: tpch-q10-lakehouse
+
+services:
+  s3:
+    image: rustfs/rustfs:1.0.0
+    environment:
+      RUSTFS_ADDRESS: "0.0.0.0:9000"
+      RUSTFS_CONSOLE_ADDRESS: "0.0.0.0:9001"
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_ACCESS_KEY: ${MINIO_USER}
+      RUSTFS_SECRET_KEY: ${MINIO_PASSWORD}
+    ports:
+      - "127.0.0.1:${MINIO_API_PORT}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT}:9001"
+    volumes:
+      - s3-data:/data
+
+  s3-init:
+    image: amazon/aws-cli:2.36.44
+    depends_on:
+      s3:
+        condition: service_started
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - 'until aws --endpoint-url http://s3:9000 s3 ls >/dev/null 2>&1; do sleep 2; done; aws --endpoint-url http://s3:9000 s3 mb s3://bronze; aws --endpoint-url http://s3:9000 s3 mb s3://silver; aws --endpoint-url http://s3:9000 s3 mb s3://gold'
+    environment:
+      AWS_ACCESS_KEY_ID: ${MINIO_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_PASSWORD}
+      AWS_DEFAULT_REGION: us-east-1
+
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: lakekeeper
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: lakekeeper
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT}:5432"
+    volumes:
+      - ${LAKEHOUSE_RUNTIME}/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lakekeeper -d lakekeeper"]
+      interval: 5s
+      retries: 20
+
+  lakekeeper-migrate:
+    image: quay.io/lakekeeper/catalog@sha256:f41c353ef981c64ea284e25f2abf804561600bd7d63d8a3ce956ad84c6611f33
+    command: migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment: &lakekeeper_env
+      LAKEKEEPER__PG_ENCRYPTION_KEY: ${LAKEKEEPER_KEY}
+      LAKEKEEPER__PG_DATABASE_URL_READ: postgresql://lakekeeper:${POSTGRES_PASSWORD}@postgres:5432/lakekeeper
+      LAKEKEEPER__PG_DATABASE_URL_WRITE: postgresql://lakekeeper:${POSTGRES_PASSWORD}@postgres:5432/lakekeeper
+
+  lakekeeper:
+    image: quay.io/lakekeeper/catalog@sha256:f41c353ef981c64ea284e25f2abf804561600bd7d63d8a3ce956ad84c6611f33
+    command: serve
+    depends_on:
+      lakekeeper-migrate:
+        condition: service_completed_successfully
+      s3-init:
+        condition: service_completed_successfully
+    environment: *lakekeeper_env
+    ports:
+      - "127.0.0.1:${LAKEKEEPER_PORT}:8181"
+
+  trino:
+    image: trinodb/trino:476
+    depends_on:
+      lakekeeper:
+        condition: service_started
+    ports:
+      - "127.0.0.1:${TRINO_PORT}:8080"
+    volumes:
+      - ${LAKEHOUSE_RUNTIME}/catalog:/etc/trino/catalog:ro
+
+  superset-init:
+    build:
+      context: .
+      dockerfile: Dockerfile.superset
+    command: >-
+      /bin/sh -c 'superset db upgrade &&
+      superset fab create-admin --username admin --firstname Dinara --lastname Bikbulatova
+      --email admin@localhost --password "$${SUPERSET_ADMIN_PASSWORD}" || true;
+      superset init'
+    environment: &superset_env
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
+      SUPERSET_ADMIN_PASSWORD: ${SUPERSET_ADMIN_PASSWORD}
+      SUPERSET_HOME: /app/superset_home
+    volumes:
+      - ${LAKEHOUSE_RUNTIME}/superset:/app/superset_home
+
+  superset:
+    build:
+      context: .
+      dockerfile: Dockerfile.superset
+    command: ["/bin/sh", "-c", "superset run -h 0.0.0.0 -p 8088"]
+    depends_on:
+      superset-init:
+        condition: service_completed_successfully
+      trino:
+        condition: service_started
+    environment: *superset_env
+    volumes:
+      - ${LAKEHOUSE_RUNTIME}/superset:/app/superset_home
+    ports:
+      - "127.0.0.1:${SUPERSET_PORT}:8088"
+
+
+volumes:
+  s3-data:
