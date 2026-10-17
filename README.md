@@ -1,14 +1,14 @@
-# Практическая № 1: TPC-H Q10 в локальном Lakehouse
+# Практическая работа № 1: TPC-H Q10
 
-Работа Бикбулатовой Динары Фануровны, вариант 2, `tpch.sf1`. Сырые таблицы хранятся в Bronze, подготовленные данные — в Silver, ответ Q10 — в Gold. У каждого слоя отдельный бакет RustFS и warehouse Lakekeeper.
+Бикбулатова Динара Фануровна, вариант 2, масштаб `sf1`. Здесь лежат файлы для запуска Lakehouse и мой отчёт по запросу Q10 «Returned Item Reporting».
 
-## Что понадобится
+## Что нужно для запуска
 
-Windows 11 с Docker Desktop (Linux containers, WSL 2) и Python 3.12. На этом компьютере рабочая папка находится на диске D; частные настройки, база PostgreSQL и состояние Superset хранятся в `D:\lakehouse-tpch-q10-runtime`, вне Git. Данные RustFS находятся в Docker-томе `s3-data`; том, образы и WSL-диск Docker Desktop размещены на D.
+Windows 11, Docker Desktop с WSL 2 и Python 3.12. Сам репозиторий находится на диске D. Пароли, настройки сервисов и данные контейнеров хранятся отдельно, в `D:\lakehouse-tpch-q10-runtime` и томах Docker.
 
-Используется Trino 476. Технологии и результаты собственного прогона описаны в [отчёте](отчет.md), исходные числа — в [измерениях](results/measurements.json).
+В стенде используется Trino 476. Результаты моего запуска есть в [отчёте](отчет.md), подробные замеры — в [measurements.json](results/measurements.json).
 
-## Поднять стек
+## Запуск
 
 Команды PowerShell из корня репозитория:
 
@@ -22,9 +22,9 @@ docker compose --env-file $runtime up -d --build trino superset
 docker compose --env-file $runtime ps
 ```
 
-`prepare` генерирует случайные пароли и каталог Trino в частной папке. Параметр `--accept-lakekeeper-terms` используют после ознакомления с условиями Lakekeeper. Для другого расположения частной папки задайте переменную окружения `LAKEHOUSE_RUNTIME` перед первым шагом. Скрипт выбирает свободные порты; действительные значения напечатаны после `prepare` и сохранены в частном `runtime.env`.
+`prepare` создаёт пароли и настройки Trino в папке вне Git. Команда `bootstrap --accept-lakekeeper-terms` подтверждает условия Lakekeeper; перед её запуском нужно с ними ознакомиться. Если папка на D не подходит, перед первым шагом можно задать `LAKEHOUSE_RUNTIME`. Занятый порт скрипт заменит свободным и запишет выбор в локальный `runtime.env`.
 
-| Интерфейс | Порт в проверенном прогоне |
+| Сервис | Порт в моём запуске |
 |---|---:|
 | RustFS S3 API | 9000 |
 | RustFS Console | 9001 |
@@ -33,32 +33,37 @@ docker compose --env-file $runtime ps
 | Trino | 8080 |
 | Superset | 8088 |
 
-Адреса интерфейсов имеют вид `http://localhost:<порт>`. При конфликте портов используйте значения, напечатанные `prepare`. Пароли RustFS и Superset берутся из частного `runtime.env`; публиковать этот файл нельзя.
+Веб-интерфейсы открываются по адресу `http://127.0.0.1:<порт>`. Если `prepare` выбрал другие порты, берите их из локального `runtime.env`.
 
-## Загрузить данные и повторить измерения
+## Данные и замеры
 
-На новом, пустом стенде выполните:
+На новом, пустом стенде запустите:
 
 ```powershell
 py scripts/run.py
 ```
 
-Скрипт загружает все строки четырёх таблиц `tpch.sf1`, строит Silver и Gold, проверяет ключи и денежные поля, запускает Q10 по четырём сочетаниям формата и кодека. У каждого сочетания один прогрев и пять измерений. Время берётся по часам клиента от отправки SQL до получения всех страниц результата. Размер — сумма `file_size_in_bytes` из `$files` текущего Iceberg-снапшота; это размер файлов данных без исторических и служебных файлов. Каждый шаг сохраняет прогресс в `results/measurements.json`.
+`run.py` переносит полные таблицы `customer`, `orders`, `lineitem`, `nation` из `tpch.sf1`, строит Silver и Gold, выполняет проверки и сравнивает Q10 для Parquet/GZIP, Parquet/ZSTD, ORC/GZIP и ORC/ZSTD. Для каждого варианта есть один прогрев и пять замеров. Время измеряется от отправки SQL до получения всего ответа. Размер берётся из Iceberg `$files` текущего снапшота. Числа записываются в `results/measurements.json`.
 
-Контрольный запрос преподавателя — [q10_control.sql](sql/q10_control.sql). Построение слоёв — [layers.sql](sql/layers.sql), проверки — [checks.sql](sql/checks.sql). Вариант `parquet_zstd` создаёт таблицы `bronze.lab.customer`, `orders`, `lineitem`, `nation`; остальные варианты получают суффиксы в том же бакете. Витрина — `gold.lab.q10_top20`.
+Контрольный запрос — [q10_control.sql](sql/q10_control.sql). Создание слоёв — [layers.sql](sql/layers.sql), проверки — [checks.sql](sql/checks.sql). Основные таблицы Bronze записаны в Parquet/ZSTD. Остальные наборы получили суффиксы в названиях таблиц. Готовая витрина — `gold.lab.q10_top20`.
 
-`run.py` рассчитан на чистые схемы. Это исключает случайное повторное использование старых таблиц и измерений. Для нового прогона создайте отдельную частную папку и удалите прежние контейнеры и данные только после сохранения нужного результата.
+`run.py` рассчитан на пустые схемы, чтобы новый прогон не использовал старые таблицы. Перед повторным запуском нужен новый стенд с пустыми warehouse.
 
-## Superset и подтверждения
+## Superset
 
-В Superset добавьте базу Trino с SQLAlchemy URI `trino://student@trino:8080/bronze`. В SQL Lab выполните:
+В Superset добавьте подключение `trino://student@trino:8080/bronze`. Проверочный запрос в SQL Lab:
 
 ```sql
-SELECT custkey, name, nationkey FROM bronze.lab.customer ORDER BY custkey LIMIT 10;
+SELECT custkey, name, nationkey
+FROM bronze.lab.customer
+ORDER BY custkey
+LIMIT 10;
 ```
 
-Скриншоты этого запуска: [Docker Desktop](evidence/docker-services.jpg), [три бакета RustFS](evidence/rustfs-three-buckets.jpg), [Parquet-файл Bronze customer](evidence/rustfs-bronze-customer-file.jpg), [Trino 476](evidence/trino-476-overview.jpg), [запрос Bronze в Superset SQL Lab](evidence/superset-sql-lab-bronze-customer.jpg). Числовые подтверждения: [список бакетов](evidence/buckets.txt), [файл Bronze customer](evidence/bronze-customer-files.txt), [ответы Trino](evidence/trino-query-results.txt), [результат SQL Lab](evidence/superset-sql-lab-result.json). Запрос в SQL Lab вернул 10 строк; ранее тот же запрос через API SQL Lab выполнился со статусом `success`.
+## Скриншоты
 
-## Файлы и секреты
-
-В Git попадают только Compose, Dockerfile Superset, два основных Python-скрипта, SQL, отчёт, измерения и доказательства запуска. Данные контейнеров, пароли, токены и конфигурация каталога Trino остаются в частной папке на D. Перед публикацией проверьте `docker compose config`, `py_compile`, ссылки и содержимое индекса Git.
+- [Работающие контейнеры Docker](evidence/docker-services.jpg)
+- [Бакеты Bronze, Silver и Gold](evidence/rustfs-three-buckets.jpg)
+- [Parquet-файл таблицы Bronze customer](evidence/rustfs-bronze-customer-file.jpg)
+- [Trino 476](evidence/trino-476-overview.jpg)
+- [Запрос к Bronze в Superset SQL Lab](evidence/superset-sql-lab-bronze-customer.jpg)

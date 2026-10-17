@@ -1,7 +1,0 @@
-> aws --endpoint-url http://s3:9000 s3 ls s3://bronze/ --recursive (customer table only)
-2026-10-17 12:02:17    8201360 customer-e3dcf33652a64a019bbe762ffeb9bb5a/data/20261017_120215_00017_8u34u-3436714c-5322-4d81-a4e5-ac7bea088665.parquet
-2026-10-17 12:02:18        824 customer-e3dcf33652a64a019bbe762ffeb9bb5a/metadata/00000-01a149bd-ce1a-75f2-af44-2831e9387882.gz.metadata.json
-2026-10-17 12:02:18       1071 customer-e3dcf33652a64a019bbe762ffeb9bb5a/metadata/00001-01a149bd-cf16-7052-bfd5-58c51d90d2ac.gz.metadata.json
-2026-10-17 12:02:17       7648 customer-e3dcf33652a64a019bbe762ffeb9bb5a/metadata/0018440a-ca21-4dfd-86d9-91107fe03548-m0.avro
-2026-10-17 12:02:18     192453 customer-e3dcf33652a64a019bbe762ffeb9bb5a/metadata/20261017_120215_00017_8u34u-32595505-86d2-4401-8818-44a519439e72.stats
-2026-10-17 12:02:17       4466 customer-e3dcf33652a64a019bbe762ffeb9bb5a/metadata/snap-4836734900373376371-1-0018440a-ca21-4dfd-86d9-91107fe03548.avro
